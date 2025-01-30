@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lì Xì 2025</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8d7da;
+            font-family: Arial, sans-serif;
+        }
+        .lucky-money-form {
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            margin-top: 2rem;
+        }
+        .header {
+            color: #dc3545;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .remaining-count {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .recipients-list {
+            margin-top: 2rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .recipient-item {
+            border-left: 4px solid #dc3545;
+            margin-bottom: 1rem;
+            padding: 0.5rem 1rem;
+            background-color: #fff;
+        }
+        .denomination-item {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            margin: 0.25rem;
+            border-radius: 5px;
+            background-color: #dc3545;
+            color: white;
+            font-size: 0.9rem;
+        }
+        .denomination-item.empty {
+            background-color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="lucky-money-form">
+                    <h1 class="header">🧧 Lì Xì 2025 🧧</h1>
+                    <div class="text-center mb-4">
+                        <p>Còn lại: <span id="remainingCount" class="remaining-count">15</span> lượt lì xì</p>
+                        <div id="denominationsRemaining" class="mb-3">
+                            <!-- Will be filled by JavaScript -->
+                        </div>
+                    </div>
+                    <form id="luckyMoneyForm">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Họ và tên:</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="accountNumber" class="form-label">Số tài khoản:</label>
+                            <input type="text" class="form-control" id="accountNumber" name="accountNumber" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="bank" class="form-label">Ngân hàng:</label>
+                            <input type="text" class="form-control" id="bank" name="bank" required>
+                        </div>
+                        <button type="submit" class="btn btn-danger w-100">Nhận Lì Xì</button>
+                                        <p class="text-center mt-3"><strong>Lưu ý:</strong> Tiền lì xì sẽ được phân phối tự động trong vòng 15 phút sau khi toàn bộ lì xì được phân phát.</p>
+
+                    </form>
+                    <div id="result" class="mt-3 text-center"></div>
+                    
+                    <div class="recipients-list">
+                        <h4 class="text-center mb-3">Danh sách người đã nhận</h4>
+                        <div id="recipientsList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function formatMoney(amount) {
+            return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        }
+
+        function maskAccountNumber(accountNumber) {
+            if (accountNumber.length <= 4) return accountNumber;
+            return '***' + accountNumber.slice(-4);
+        }
+
+        // Common headers for all requests
+        const requestHeaders = {
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true'
+        };
+
+        function updateDenominationsDisplay(denominations) {
+            const container = document.getElementById('denominationsRemaining');
+            container.innerHTML = denominations.map(item => `
+                <div class="denomination-item ${item.quantity === 0 ? 'empty' : ''}">
+                    ${item.amount.toLocaleString('vi-VN')}đ: ${item.quantity} tờ
+                </div>
+            `).join('');
+        }
+
+        function updateRecipients() {
+            fetch('/recipients', {
+                headers: requestHeaders
+            })
+                .then(response => response.json())
+                .then(data => {
+                    const recipientsList = document.getElementById('recipientsList');
+                    const remainingCount = document.getElementById('remainingCount');
+                    const remainingDenominations = document.getElementById('denominationsRemaining');
+                    
+                    // Update remaining count
+                    remainingCount.textContent = data.remainingCount;
+                    
+                    // Update denominations
+                    updateDenominationsDisplay(data.remainingDenominations);
+
+                    // Update recipients list
+                    recipientsList.innerHTML = data.recipients
+                        .map(recipient => `
+                            <div class="recipient-item">
+                                <div><strong>Thời gian:</strong> ${recipient.timestamp}</div>
+                                <div><strong>Tên:</strong> ${recipient.name}</div>
+                                <div><strong>Ngân hàng:</strong> ${recipient.bank}</div>
+                                <div><strong>Số tài khoản:</strong> ${maskAccountNumber(recipient.accountNumber)}</div>
+                                <div><strong>Số tiền:</strong> ${formatMoney(recipient.amount)} VNĐ</div>
+                                <div><strong>IP:</strong> ${recipient.ip}</div>
+                            </div>
+                        `)
+                        .join('');
+                });
+        }
+
+        // Load recipients immediately and set up form submission
+        updateRecipients();
+
+        document.getElementById('luckyMoneyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                name: document.getElementById('name').value,
+                accountNumber: document.getElementById('accountNumber').value,
+                bank: document.getElementById('bank').value
+            };
+
+            try {
+                const response = await fetch('/lucky-money', {
+                    method: 'POST',
+                    headers: requestHeaders,
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('result').innerHTML = `
+                        <div class="alert alert-success">
+                            Chúc mừng! Bạn đã nhận được ${formatMoney(data.amount)} VNĐ
+                        </div>
+                    `;
+                    document.getElementById('remainingCount').textContent = data.remainingCount;
+                    updateDenominationsDisplay(data.remainingDenominations);
+                    
+                    if (data.remainingCount === 0) {
+                        document.querySelector('button[type="submit"]').disabled = true;
+                    }
+
+                    // Reset form and reload recipients list
+                    e.target.reset();
+                    updateRecipients();
+                } else {
+                    document.getElementById('result').innerHTML = `
+                        <div class="alert alert-danger">
+                            ${data.message}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <div class="alert alert-danger">
+                        Có lỗi xảy ra, vui lòng thử lại sau!
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
